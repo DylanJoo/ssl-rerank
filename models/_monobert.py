@@ -34,15 +34,7 @@ class monoBERT(BertForSequenceClassification):
         )
 
         # get the score
-        logits = model_output['logits']
-        if logits.size(1) > 1:
-            score = F.log_softmax(logits, 1)[0, -1].item()
-        else:
-            score = score.item()
+        logits = model_output['logits'] # the pooled outputs
+        hidden_states = model_output['hidden_states'] # the contextualized embeddings
 
-        # get the embeddings
-        hidden_states = model_output['hidden_states']
-
-        return {'score': score, 
-                'logit': logit, 
-                'last_hidden_states': hidden_states}
+        return {'logits': logits, 'last_hidden_states': hidden_states}

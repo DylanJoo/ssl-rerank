@@ -25,22 +25,26 @@ def main():
 
     # [Model] tokenizer, model architecture (with bi-encoders)
     tokenizer = AutoTokenizer.from_pretrained(model_opt.model_path or model_opt.model_name)
-    # [Model-Dev]
-    from models import BiCrossEncoder, monoBERT
 
+    from models import BiCrossEncoder, monoBERT
     encoder = monoBERT.from_pretrained(model_opt.model_name)
     model = BiCrossEncoder(
             opt=model_opt, 
             encoder=encoder, 
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
+            curr_mask_ratio=0.0, # totally crossencoder
+            do_biencoder=False
     )
 
-    ## [todo] include the distillation if needed
     
     # [Data] train/eval datasets, collator, preprocessor
     train_dataset = load_dataset(data_opt, tokenizer)
     eval_dataset = None
-    collator = Collator(opt=data_opt, eos_id=tokenizer.eos_token_id)
+    collator = Collator(
+            opt=data_opt, 
+            bos_token_id=tokenizer.bos_token_id
+            eos_token_id=tokenizer.eos_token_id
+    )
 
     trainer = TrainerBase(
             model=model, 

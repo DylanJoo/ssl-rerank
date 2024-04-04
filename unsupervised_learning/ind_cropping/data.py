@@ -69,47 +69,50 @@ class Dataset(torch.utils.data.Dataset):
         self.offset = random.randint(0, self.chunk_length - 1)
 
 
-class CollatorForReranking(object):
-    def __init__(self, opt, tokenizer, max_length):
+class Collator(object):
+    def __init__(self, opt, bos_token_id, eos_token_id):
         self.opt = opt
-        self.tokenizer = tokenizer
-        self.max_length = max_length
+        self.bos_token_id = bos_token_id
+        self.eos_token_id = eos_token_id
+        self.max_length = opt.max_length
 
     def combine_pair(self, left, right):
         # [CLS] <left>  [SEP] <right> [SEP]
-        #   0   0 ... 0   0   1111111   0
-        token_id = left + [self.tokenizer.bos_token_id] + right
+        #   1   1... 1    1   0000000   1
+        token_id = left + [self.bos_token_id] + right
         token_id = token_id[:(self.max_length - 2)]
-        token_id = add_bos_eos(token_id, self.tokenizer.bos_token_id, self.tokenizer.eos_token_id)
-        currmask_id = [0] * (len(left) + 2) + [1] * (len(right) - 1) + [0]
-        return token_id, currmask_id
+        token_id = add_bos_eos(token_id, self.bos_token_id, self.eos_token_id)
+        # curr_mask_cand = list(range(len(left)+2, len(token_id))) # bc feeding into hugface trainer, tensor requirements
+        curr_mask_cand = torch.tensor([len(left)+2, len(token_id)], dtype=torch.long)
+        return token_id, curr_mask_cand
 
     def __call__(self, batch_examples):
-
         batch = defaultdict(list)
         batch_size = len(batch_examples)
 
         ## 1. all negatives: means one example would have 1 positive + (B-1) negatives
         for i, example in enumerate(batch_examples):
             # positive samples # batch['tokens'].append(add_bos_eos(example['context'] + example['query'], self.bos_token_id, None))
-            token, currmask = self.combine_pair(example['query'], example['context'])
+            token, curr_mask_cand = self.combine_pair(example['query'], example['context'])
             batch['pair'].append(token)
-            batch['curriculum_mask_candidates'].append(currmask)
-            batch['label'].append(1)
+            batch['curr_mask_cands'].append(curr_mask_cand)
+            batch['labels'].append(1)
 
             # negative samples from B-1 batch
             other_i = list(range(batch_size))
             other_i.remove(i) # exclude the positive qk pair
             for j in other_i:
                 other_example = batch_examples[j]
-                token, currmask = self.combine_pair(example['query'], other_example['context'])
+                token, curr_mask_cand = self.combine_pair(example['context'], other_example['context'])
                 batch['pair'].append(token)
-                batch['curriculum_mask_candidates'].append(currmask)
-                batch['label'].append(0)
+                batch['curr_mask_cands'].append(curr_mask_cand)
+                batch['labels'].append(0)
 
         pair_tokens, pair_masks = build_mask(batch['pair'])
-        batch["pair_tokens"] = pair_tokens
-        batch["pair_mask"] = pair_mask
+        batch["tokens"] = pair_tokens
+        batch["attn_masks"] = pair_masks
+        batch['labels'] = torch.tensor(batch['labels'], dtype=torch.long)
+        batch['curr_mask_cands'] = torch.stack(batch['curr_mask_cands'])
 
         return batch
 
@@ -123,17 +126,21 @@ def randomcrop(x, ratio_min, ratio_max):
     return crop
 
 
-def build_mask(tensors):
+def build_mask(tensors, curr_masks):
+
     shapes = [x.shape for x in tensors]
     maxlength = max([len(x) for x in tensors])
-    returnmasks = []
+    return_attn_masks = []
+    return_curr_masks = []
     ids = []
     for k, x in enumerate(tensors):
-        returnmasks.append(torch.tensor([1] * len(x) + [0] * (maxlength - len(x))))
+        return_attn_masks.append(torch.tensor([1] * len(x) + [0] * (maxlength - len(x))))
+        return_curr_masks.append(torch.tensor(curr_masks[k]+ [0] * (maxlength - len(x))))
         ids.append(torch.cat((x, torch.tensor([0] * (maxlength - len(x))))))
     ids = torch.stack(ids, dim=0).long()
-    returnmasks = torch.stack(returnmasks, dim=0).bool()
-    return ids, returnmasks
+    return_attn_masks = torch.stack(return_attn_masks, dim=0).bool()
+    return_curr_masks = torch.stack(return_curr_masks, dim=0).bool()
+    return ids, return_attn_masks, return_curr_masks
 
 
 def add_token(x, token):

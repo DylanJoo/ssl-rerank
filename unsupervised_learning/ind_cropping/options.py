@@ -10,14 +10,9 @@ class ModelOptions:
     model_path: Optional[str] = field(default=None)
     tokenizer_name: Optional[str] = field(default=None)
     pooling: Optional[str] = field(default="mean")
-    span_pooling: Optional[str] = field(default=None)
-    # norm_doc: Optional[bool] = field(default=False)
-    # norm_query: Optional[bool] = field(default=False)
-    # norm_spans: Optional[bool] = field(default=False)
-    # output_span: Optional[bool] = field(default=False)
     distil_from_sentence: Optional[str] = field(default=None)
     temperature: Optional[float] = field(default=1.0)
-    # temperature_span: Optional[float] = field(default=1.0)
+    do_biencoder: bool = field(default=False)
 
 @dataclass
 class DataOptions:
@@ -26,10 +21,12 @@ class DataOptions:
     eval_data_dir: Optional[str] = field(default=None)
     loading_mode: Optional[str] = field(default="full")
     chunk_length: Optional[int] = field(default=256)
+    max_length: Optional[int] = field(default=384)
     ratio_min: Optional[float] = field(default=0.1)
     ratio_max: Optional[float] = field(default=0.5)
     augmentation: Optional[str] = field(default=None)
     prob_augmentation: Optional[float] = field(default=0.0)
+    curr_mask_ratio: Optional[float] = field(default=0.0)
 
 @dataclass
 class TrainOptions(TrainingArguments):
