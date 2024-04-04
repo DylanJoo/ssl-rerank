@@ -4,10 +4,7 @@ import torch.nn as nn
 from transformers import BertForSequenceClassification
 import torch.nn.functional as F
 
-class MonoBERT(BertForSequenceClassification):
-
-    def __init__(self, config, **kwargs):
-        super().__init__(config, **kwargs)
+class monoBERT(BertForSequenceClassification):
 
     def forward(
         self,
@@ -45,9 +42,7 @@ class MonoBERT(BertForSequenceClassification):
 
         # get the embeddings
         hidden_states = model_output['hidden_states']
-        last_hidden_state = hidden_states[-1] 
 
-        return {'score': score, 'last_hidden_states': last_hidden_state}
-
-
-
+        return {'score': score, 
+                'logit': logit, 
+                'last_hidden_states': hidden_states}

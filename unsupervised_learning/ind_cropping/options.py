@@ -11,13 +11,13 @@ class ModelOptions:
     tokenizer_name: Optional[str] = field(default=None)
     pooling: Optional[str] = field(default="mean")
     span_pooling: Optional[str] = field(default=None)
-    norm_doc: Optional[bool] = field(default=False)
-    norm_query: Optional[bool] = field(default=False)
-    norm_spans: Optional[bool] = field(default=False)
-    output_span: Optional[bool] = field(default=False)
+    # norm_doc: Optional[bool] = field(default=False)
+    # norm_query: Optional[bool] = field(default=False)
+    # norm_spans: Optional[bool] = field(default=False)
+    # output_span: Optional[bool] = field(default=False)
     distil_from_sentence: Optional[str] = field(default=None)
     temperature: Optional[float] = field(default=1.0)
-    temperature_span: Optional[float] = field(default=1.0)
+    # temperature_span: Optional[float] = field(default=1.0)
 
 @dataclass
 class DataOptions:
