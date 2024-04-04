@@ -48,6 +48,7 @@ class Dataset(torch.utils.data.Dataset):
 
         self.data = data
         self.chunk_length = chunk_length
+        # self.max_length = max_length
         self.tokenizer = tokenizer
         self.opt = opt
         self.opt.mask_id = tokenizer.mask_token_id 
@@ -60,40 +61,57 @@ class Dataset(torch.utils.data.Dataset):
         start_idx = self.offset + index * self.chunk_length
         end_idx = start_idx + self.chunk_length
         tokens = self.data[start_idx:end_idx]
-        q_tokens = randomcrop(tokens, self.opt.ratio_min, self.opt.ratio_max)
-        k_tokens = randomcrop(tokens, self.opt.ratio_min, self.opt.ratio_max)
-        q_tokens = apply_augmentation(q_tokens, self.opt)
-        q_tokens = add_bos_eos(q_tokens, self.tokenizer.bos_token_id, self.tokenizer.eos_token_id)
-        k_tokens = apply_augmentation(k_tokens, self.opt)
-        k_tokens = add_bos_eos(k_tokens, self.tokenizer.bos_token_id, self.tokenizer.eos_token_id)
-
-        return {"q_tokens": q_tokens, "k_tokens": k_tokens}
+        query = randomcrop(tokens, self.opt.ratio_min, self.opt.ratio_max)
+        context = randomcrop(tokens, self.opt.ratio_min, self.opt.ratio_max)
+        return {"query": query, "context": context}
 
     def generate_offset(self):
         self.offset = random.randint(0, self.chunk_length - 1)
 
 
-class Collator(object):
-    def __init__(self, opt):
+class CollatorForReranking(object):
+    def __init__(self, opt, tokenizer, max_length):
         self.opt = opt
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def combine_pair(self, left, right):
+        # [CLS] <left>  [SEP] <right> [SEP]
+        #   0   0 ... 0   0   1111111   0
+        token_id = left + [self.tokenizer.bos_token_id] + right
+        token_id = token_id[:(self.max_length - 2)]
+        token_id = add_bos_eos(token_id, self.tokenizer.bos_token_id, self.tokenizer.eos_token_id)
+        currmask_id = [0] * (len(left) + 2) + [1] * (len(right) - 1) + [0]
+        return token_id, currmask_id
 
     def __call__(self, batch_examples):
 
         batch = defaultdict(list)
-        for example in batch_examples:
-            for k, v in example.items():
-                batch[k].append(v)
+        batch_size = len(batch_examples)
 
-        q_tokens, q_mask = build_mask(batch["q_tokens"])
-        k_tokens, k_mask = build_mask(batch["k_tokens"])
+        ## 1. all negatives: means one example would have 1 positive + (B-1) negatives
+        for i, example in enumerate(batch_examples):
+            # positive samples # batch['tokens'].append(add_bos_eos(example['context'] + example['query'], self.bos_token_id, None))
+            token, currmask = self.combine_pair(example['query'], example['context'])
+            batch['pair'].append(token)
+            batch['curriculum_mask_candidates'].append(currmask)
+            batch['label'].append(1)
 
-        batch["q_tokens"] = q_tokens
-        batch["q_mask"] = q_mask
-        batch["k_tokens"] = k_tokens
-        batch["k_mask"] = k_mask
+            # negative samples from B-1 batch
+            other_i = list(range(batch_size))
+            other_i.remove(i) # exclude the positive qk pair
+            for j in other_i:
+                other_example = batch_examples[j]
+                token, currmask = self.combine_pair(example['query'], other_example['context'])
+                batch['pair'].append(token)
+                batch['curriculum_mask_candidates'].append(currmask)
+                batch['label'].append(0)
+
+        pair_tokens, pair_masks = build_mask(batch['pair'])
+        batch["pair_tokens"] = pair_tokens
+        batch["pair_mask"] = pair_mask
 
         return batch
-
 
 def randomcrop(x, ratio_min, ratio_max):
 
@@ -153,7 +171,22 @@ def shuffleword(x, p=0.1):
     return x
 
 
-def apply_augmentation(x, opt):
+def apply_augmentation(x, opt, ):
+    # if opt.augmentation == "mask":
+    #     return torch.tensor(maskword(x, mask_id=opt.mask_id, p=opt.prob_augmentation))
+    # elif opt.augmentation == "replace":
+    #     return torch.tensor(
+    #         replaceword(x, min_random=opt.start_id, max_random=opt.vocab_size - 1, p=opt.prob_augmentation)
+    #     )
+    # elif opt.augmentation == "delete":
+    #     return torch.tensor(deleteword(x, p=opt.prob_augmentation))
+    # elif opt.augmentation == "shuffle":
+    #     return torch.tensor(shuffleword(x, p=opt.prob_augmentation))
+    # else:
+    #     if not isinstance(x, torch.Tensor):
+    #         x = torch.Tensor(x)
+    #     return x
+
     if opt.augmentation == "mask":
         return torch.tensor(maskword(x, mask_id=opt.mask_id, p=opt.prob_augmentation))
     elif opt.augmentation == "replace":
