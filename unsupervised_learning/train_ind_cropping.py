@@ -11,7 +11,7 @@ from trainers import TrainerBase
 from ind_cropping.options import ModelOptions, DataOptions, TrainOptions
 from ind_cropping.data import load_dataset, Collator
 
-os.environ["WANDB_PROJECT"]="SSL4LEDR"
+os.environ["WANDB_PROJECT"]="SSL4LERR"
 
 
 def main():
@@ -25,6 +25,8 @@ def main():
 
     # [Model] tokenizer, model architecture (with bi-encoders)
     tokenizer = AutoTokenizer.from_pretrained(model_opt.model_path or model_opt.model_name)
+    tokenizer.bos_token = '[CLS]'
+    tokenizer.eos_token = '[SEP]'
 
     from models import BiCrossEncoder, monoBERT
     encoder = monoBERT.from_pretrained(model_opt.model_name)
@@ -33,16 +35,14 @@ def main():
             encoder=encoder, 
             tokenizer=tokenizer,
             curr_mask_ratio=0.0, # totally crossencoder
-            do_biencoder=False
     )
-
     
     # [Data] train/eval datasets, collator, preprocessor
     train_dataset = load_dataset(data_opt, tokenizer)
     eval_dataset = None
     collator = Collator(
             opt=data_opt, 
-            bos_token_id=tokenizer.bos_token_id
+            bos_token_id=tokenizer.bos_token_id,
             eos_token_id=tokenizer.eos_token_id
     )
 

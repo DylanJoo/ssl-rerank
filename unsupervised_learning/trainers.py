@@ -24,7 +24,8 @@ class TrainerBase(Trainer):
             labels = inputs.pop("labels")
         else:
             labels = None
-        outputs = model(**inputs)
+
+        outputs = model(**inputs, steps=self.state.global_step)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
@@ -49,7 +50,6 @@ class TrainerBase(Trainer):
             # We don't use .loss here since the model may return tuples instead of ModelOutput.
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
-
         if self.state.global_step % 10 == 0:
             logger.info(f"loss: {outputs['loss'].item()} | acc: {outputs['acc']}")
             self.log({"loss": outputs['loss'].item(), "acc": outputs['acc'].item()})
@@ -66,7 +66,7 @@ class TrainerBase(Trainer):
         # If we are executing this function, we are the process zero, so we don't check for that.
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Saving model checkpoint to {output_dir}. The model checkpoint is a encoder not a bi-encoder.")
+        logger.info(f"Saving model checkpoint to {output_dir}. The model checkpoint is an encoder for huggingface not a wrapping model.")
 
         model = self.model.get_encoder()
         self.model.encoder.save_pretrained(

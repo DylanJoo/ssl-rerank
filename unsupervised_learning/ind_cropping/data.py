@@ -79,7 +79,7 @@ class Collator(object):
     def combine_pair(self, left, right):
         # [CLS] <left>  [SEP] <right> [SEP]
         #   1   1... 1    1   0000000   1
-        token_id = left + [self.bos_token_id] + right
+        token_id = torch.cat([left.clone().detach(), torch.tensor([self.bos_token_id]), right.clone().detach()])
         token_id = token_id[:(self.max_length - 2)]
         token_id = add_bos_eos(token_id, self.bos_token_id, self.eos_token_id)
         # curr_mask_cand = list(range(len(left)+2, len(token_id))) # bc feeding into hugface trainer, tensor requirements
@@ -126,21 +126,18 @@ def randomcrop(x, ratio_min, ratio_max):
     return crop
 
 
-def build_mask(tensors, curr_masks):
+def build_mask(tensors):
 
     shapes = [x.shape for x in tensors]
     maxlength = max([len(x) for x in tensors])
     return_attn_masks = []
-    return_curr_masks = []
     ids = []
     for k, x in enumerate(tensors):
         return_attn_masks.append(torch.tensor([1] * len(x) + [0] * (maxlength - len(x))))
-        return_curr_masks.append(torch.tensor(curr_masks[k]+ [0] * (maxlength - len(x))))
         ids.append(torch.cat((x, torch.tensor([0] * (maxlength - len(x))))))
     ids = torch.stack(ids, dim=0).long()
     return_attn_masks = torch.stack(return_attn_masks, dim=0).bool()
-    return_curr_masks = torch.stack(return_curr_masks, dim=0).bool()
-    return ids, return_attn_masks, return_curr_masks
+    return ids, return_attn_masks
 
 
 def add_token(x, token):

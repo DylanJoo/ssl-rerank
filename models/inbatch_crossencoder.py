@@ -39,14 +39,15 @@ class BiCrossEncoder(nn.Module):
             x[i, indices_masked] = masked_value # replace 1 into 0 (masked)
         return x
 
-    def forward(self, pair_tokens, pair_masks, curr_mask_cands=None, labels=None, **kwargs):
+
+    def forward(self, tokens, attn_masks, curr_mask_cands=None, labels=None, **kwargs):
         """
         In the earlier training, this model indicates the cross-encoder for reranking; 
         thus, the input is a query-context pair: [CLS] <l_tokens> [SEP] <r_tokens> [SEP] 
 
         While the <r_tokens> can be masksed depending on the training steps.
         """
-        bsz = len(pair_tokens)
+        bsz = len(tokens)
 
         # [objectives] 
         CELoss = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
@@ -54,11 +55,11 @@ class BiCrossEncoder(nn.Module):
         ## [curriculum masking] by updating the attention mask
         if self.curr_mask_ratio > 0: # this ratio can be dynamic
             # updating attn_mask 
-            # pair_masks = self._random_curr_masking(pair_masks, curr_mask_cands, 0)
+            # attn_masks = self._random_curr_masking(attn_masks, curr_mask_cands, 0)
             # updating inputs
-            pair_tokens = self._random_curr_masking(pair_tokens, curr_mask_cands, self.tokenizer.mask_token_id)
+            tokens = self._random_curr_masking(tokens, curr_mask_cands, self.tokenizer.mask_token_id)
 
-        output = self.encoder(input_ids=pair_tokens, attention_mask=pair_mask)
+        output = self.encoder(input_ids=tokens, attention_mask=attn_masks)
 
         # CE: cross-encoder 
         ce_loss = CELoss(output['logits'].view(-1, self.encoder.num_labels), labels.view(-1))
