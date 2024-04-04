@@ -1,4 +1,4 @@
-from tqdm import tqdm
+import collections
 import json
 
 def load_corpus(path):

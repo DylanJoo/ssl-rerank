@@ -4,10 +4,10 @@ import os
 import datetime
 import logging
 import argparse 
-import tqdm
+from tqdm import tqdm
 import json
 
-from utils import load_topic, load_corpus, load_results
+from utils import load_topic, load_corpus, load_results, batch_iterator
 from encoders import monoBERTCrossEncoder
 
 def rerank(args, writer):
@@ -17,29 +17,36 @@ def rerank(args, writer):
             tokenizer_name='bert-base-uncased',
             device=args.device,
             apply_softmax=False
-    ).eval()
+    )
 
-    topics = load_topics(args.topic)
+    topics = load_topic(args.topic)
     qids = list(topics.keys())
-    qtexts = list(topics.values())
+    # qtexts = list(topics.values())
     corpus_texts = load_corpus(args.corpus)
     results = load_results(args.input_run, topk=args.top_k)
 
-    for qid in qids:
-        qtext = qtexts[qid]
+    for qid in tqdm(qids, total=len(qids)):
+        qtext = topics[qid]
         result = results[qid]
+        dtexts = [corpus_texts[docid] for docid in result]
 
-        # duplicated query and docs
-        pairs = list([qtext] * len(result), [corpus_texts[docid] for docid in result])
+        # predict
+        scores = []
+        for batch_dtexts in batch_iterator(dtexts, args.batch_size):
+            batch_scores = reranker.predict(
+                    [[qtext] * len(batch_dtexts), batch_dtexts], 
+                    titles=None, 
+                    max_length=args.max_length
+            )
+            scores.extend(batch_scores)
 
-        scores = reranker.predict(pairs, titles=None, max_length=args.max_length)
-
+        # re-order
         hits = {result[idx]: scores[idx] for idx in range(len(scores))}            
         sorted_result = {k: v for k,v in sorted(hits.items(), key=itemgetter(1), reverse=True)} 
 
-        # write output results
+        # write
         for i, (docid, score) in enumerate(sorted_result.items()):
-            writier.write("{} Q0 {} {} {} CE\n".format(qid, docid, str(i+1), score))
+            writer.write("{} Q0 {} {} {} CE\n".format(qid, docid, str(i+1), score))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -54,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument("--device", type=str, default='cuda')
     args = parser.parse_args()
 
-    writer = open(args.output, 'w')
-
     os.makedirs(args.output.rsplit('/', 1)[0], exist_ok=True)
+
+    writer = open(args.output, 'w')
     rerank(args, writer)

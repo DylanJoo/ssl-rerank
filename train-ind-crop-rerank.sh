@@ -1,11 +1,11 @@
 #!/bin/sh
-#SBATCH --job-name=indcrop
+#SBATCH --job-name=rerank
 #SBATCH --partition gpu
 #SBATCH --gres=gpu:2
 #SBATCH --mem=15G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=05:00:00
+#SBATCH --time=15:00:00
 #SBATCH --output=%x.%j.out
 
 # Set-up the environment.
@@ -13,8 +13,8 @@ source ${HOME}/.bashrc
 conda activate exa-dm_env
 
 # Setup experiments
-MAX_STEPS=5000
-MAX_CKPTS=2
+MAX_STEPS=40000
+MAX_CKPTS=4
 
 # Setting of lexical-enhanced DR
 method=ind-cropping
@@ -32,10 +32,10 @@ torchrun --nproc_per_node 2 \
     --curr_mask_ratio 0.0 \
     --chunk_length 128 \
     --max_length 256 \
-    --save_steps 2500 \
+    --save_steps 10000 \
     --save_total_limit $MAX_CKPTS \
     --max_steps $MAX_STEPS \
-    --warmup_steps 500 \
+    --warmup_ratio 0.1 \
     --fp16 \
     --report_to wandb --run_name ${exp} \
     --train_data_dir /home/dju/datasets/test_collection/ind_cropping

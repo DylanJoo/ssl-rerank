@@ -7,3 +7,4 @@ analysis/2gram-idf-beir.json
 models/ckpt/
 models/ckpt
 wandb/
+*.out

@@ -14,12 +14,12 @@ for ckpt in 2500 5000;do
             --reranker_path ${reranker} \
             --topic ${data_dir}/${dataset}/queries.jsonl \
             --corpus ${data_dir}/${dataset}/collection/corpus.jsonl \
-            --batch_size 128 \
+            --batch_size 64 \
             --max_length 384 \
             --input_run runs/bm25/run.beir.${dataset}.bm25-multifield.txt \
             --output runs/monobert-${exp}/run.beir.${dataset}.monobert-${exp}.txt \
-            --top_k 10  \
-            --device cpu
+            --top_k 100  \
+            --device cuda
     done
 
     for dataset in trec-covid;do

@@ -9,6 +9,7 @@ class monoBERTCrossEncoder:
     def __init__(self, model_name_or_dir, tokenizer_name=None, device='cpu', apply_softmax=False):
         self.device = device
         self.model = BertForSequenceClassification.from_pretrained(model_name_or_dir)
+        self.model.eval()
         self.model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name or 'bert-base-uncased')
         self.apply_softmax = apply_softmax
